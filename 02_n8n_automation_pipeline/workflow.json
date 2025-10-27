@@ -1,0 +1,165 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "mode": "csv",
+        "csv": {
+          "header": true,
+          "delimiter": ","
+        }
+      },
+      "name": "Read Leads (CSV/Form)",
+      "type": "n8n-nodes-base.readCsv",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "operation": "enrich",
+        "options": {},
+        "enrichmentService": "clearbit",
+        "clearbit": {
+          "email": "={{$json.email}}"
+        }
+      },
+      "name": "Enrich Lead Data",
+      "type": "n8n-nodes-base.clearbit",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.map(item => {\n  const score = (item.json.clearbit && item.json.clearbit.company && item.json.clearbit.company.metrics.employees > 50) ? 100 : 50;\n  item.json.leadScore = score;\n  return item;\n});"
+      },
+      "name": "Score Lead",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "spreadsheetId": "={{$env.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Leads",
+        "options": {},
+        "updateKey": "email",
+        "data": "={{$json}}"
+      },
+      "name": "Update Google Sheet/CRM",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1040, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SMTP_USER}}",
+        "toEmail": "={{$json.email}}",
+        "subject": "Your Personalized Offer from Jorge Mora",
+        "text": "Hi {{$json.firstName}},\n\nWe noticed your interest in [Your Service/Product]. Based on our analysis, we believe [Specific Benefit] would be highly valuable to you.\n\n[Call to Action]\n\nBest,\nJorge Mora",
+        "options": {}
+      },
+      "name": "Send Personalized Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.CALENDLY_LINK}}",
+        "options": {},
+        "event": "schedule",
+        "calendly": {
+          "inviteeEmail": "={{$json.email}}",
+          "inviteeName": "={{$json.firstName}} {{$json.lastName}}"
+        }
+      },
+      "name": "Suggest Calendly Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "webhookUrl": "={{$env.SLACK_WEBHOOK_URL}}",
+        "text": "New Lead Processed: {{$json.firstName}} {{$json.lastName}} (Score: {{$json.leadScore}}). Email sent, Calendly link suggested.",
+        "options": {}
+      },
+      "name": "Slack Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1640, 300]
+    },
+    {
+      "parameters": {
+        "message": "Error processing lead: {{$error.message}}",
+        "webhookUrl": "={{$env.SLACK_WEBHOOK_URL}}"
+      },
+      "name": "Error Notification (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1040, 500]
+    }
+  ],
+  "connections": {
+    "Start": [
+      [
+        "Read Leads (CSV/Form)"
+      ]
+    ],
+    "Read Leads (CSV/Form)": [
+      [
+        "Enrich Lead Data"
+      ]
+    ],
+    "Enrich Lead Data": [
+      [
+        "Score Lead"
+      ]
+    ],
+    "Score Lead": [
+      [
+        "Update Google Sheet/CRM"
+      ]
+    ],
+    "Update Google Sheet/CRM": [
+      [
+        "Send Personalized Email"
+      ]
+    ],
+    "Send Personalized Email": [
+      [
+        "Suggest Calendly Meeting"
+      ]
+    ],
+    "Suggest Calendly Meeting": [
+      [
+        "Slack Summary"
+      ]
+    ]
+  },
+  "settings": {
+    "errorWorkflow": "Error Notification (Slack)"
+  },
+  "id": "[GENERATED_ID]",
+  "name": "Lead Management & Outreach Pipeline",
+  "active": false,
+  "nodesPositions": {
+    "Start": [240, 300],
+    "Read Leads (CSV/Form)": [440, 300],
+    "Enrich Lead Data": [640, 300],
+    "Score Lead": [840, 300],
+    "Update Google Sheet/CRM": [1040, 300],
+    "Send Personalized Email": [1240, 300],
+    "Suggest Calendly Meeting": [1440, 300],
+    "Slack Summary": [1640, 300],
+    "Error Notification (Slack)": [1040, 500]
+  }
+}
