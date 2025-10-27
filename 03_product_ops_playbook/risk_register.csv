@@ -1,0 +1,6 @@
+ID,Risk Description,Category,Likelihood (1-5),Impact (1-5),Score,Mitigation Strategy,Owner,Status
+R01,AI model drift causes inaccurate booking recommendations,Technical/AI,4,5,20,"Implement daily model monitoring with automated alerts; establish a human-in-the-loop validation process for high-impact recommendations.",Data Science Lead,Open
+R02,Technical documentation is not ready for launch,Documentation,5,4,20,"Integrate documentation into the CI/CD pipeline; implement a 'Docs as Code' workflow with mandatory review gates.",Jorge Mora (TPM),Open
+R03,Third-party API (e.g., payment gateway) fails during peak booking times,External Dependency,3,5,15,"Implement circuit breaker pattern; develop a fallback manual booking process; establish a dedicated vendor SLA monitoring dashboard.",Engineering Lead,Open
+R04,UX specification changes late in the development cycle,Process/Scope,4,3,12,"Enforce a strict change management process post-design freeze; require sign-off from all stakeholders before development begins.",Product Manager,Open
+R05,Inconsistent bilingual content leads to user confusion,Localization,3,4,12,"Implement a centralized translation memory tool; conduct native-speaker QA testing on all localized content (Spanish/English).",Technical Writer,Open
