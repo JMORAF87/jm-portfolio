@@ -1,0 +1,277 @@
+{
+  "name": "Lead Management & Outreach Pipeline (FIXED)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "fromFile",
+        "fileFormat": "csv",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "csv-reader-2",
+      "name": "Read Leads (CSV/Form)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "operation": "enrich",
+        "email": "={{ $json.email }}",
+        "options": {
+          "continueOnFail": true
+        }
+      },
+      "id": "clearbit-3",
+      "name": "Enrich Lead Data",
+      "type": "n8n-nodes-base.clearbit",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.company }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-node-4",
+      "name": "Split: Enriched vs. Raw",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Score leads based on enriched data\nfor (const item of items) {\n  let score = 50; // Default score\n  \n  // Check if company data exists and has employees\n  if (item.json.company && \n      item.json.company.metrics && \n      item.json.company.metrics.employees) {\n    const employees = item.json.company.metrics.employees;\n    \n    if (employees > 50) {\n      score = 100;\n    } else if (employees > 10) {\n      score = 75;\n    }\n  }\n  \n  item.json.leadScore = score;\n  item.json.status = 'enriched';\n}\n\nreturn items;"
+      },
+      "id": "function-5",
+      "name": "Score Lead (Enriched)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1040, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Score raw leads with default score\nfor (const item of items) {\n  item.json.leadScore = 25;\n  item.json.status = 'raw';\n  item.json.errorType = 'Enrichment Failed';\n}\n\nreturn items;"
+      },
+      "id": "function-6",
+      "name": "Score Lead (Raw)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1040, 400]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_SHEETS_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": ["email"],
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "google-sheets-7",
+      "name": "Update Google Sheet/CRM",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1240, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_USER }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Your Personalized Offer from Jorge Mora",
+        "text": "=Hi {{ $json.firstName }},\n\nWe noticed your interest in our services. Based on our analysis, we believe our solutions would be highly valuable to you.\n\nYour lead score: {{ $json.leadScore }}\n\nBest regards,\nJorge Mora",
+        "options": {}
+      },
+      "id": "email-8",
+      "name": "Send Personalized Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_CHANNEL_ID }}",
+          "mode": "id"
+        },
+        "text": "=New Lead Processed: {{ $json.firstName }} {{ $json.lastName }} (Score: {{ $json.leadScore }}). Email sent.",
+        "otherOptions": {}
+      },
+      "id": "slack-9",
+      "name": "Slack Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1640, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_CHANNEL_ID }}",
+          "mode": "id"
+        },
+        "text": "=🚨 Enrichment Failure: Lead {{ $json.email }} was processed with a default score (25) due to missing enrichment data. Error Type: {{ $json.errorType }}",
+        "otherOptions": {}
+      },
+      "id": "slack-10",
+      "name": "Error Notification (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1240, 400],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Read Leads (CSV/Form)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads (CSV/Form)": {
+      "main": [
+        [
+          {
+            "node": "Enrich Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Split: Enriched vs. Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split: Enriched vs. Raw": {
+      "main": [
+        [
+          {
+            "node": "Score Lead (Enriched)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Score Lead (Raw)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Lead (Enriched)": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheet/CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Lead (Raw)": {
+      "main": [
+        [
+          {
+            "node": "Error Notification (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Google Sheet/CRM": {
+      "main": [
+        [
+          {
+            "node": "Send Personalized Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Personalized Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-27T00:00:00.000Z",
+  "versionId": ""
+}
